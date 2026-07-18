@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Anomaly Detection Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+            background-color: #0b131a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        .dashboard-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background-color: #0e2231;
+            padding: 25px;
+            border-radius: 6px;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+        }
+        
+        .title-header {
+            text-align: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #17384f;
+        }
+        .title-header h1 {
+            font-size: 26px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffffff;
+            margin: 0;
+        }
+        
+        .filter-ribbon {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            background-color: #112a3d;
+            padding: 15px 20px;
+            border-radius: 4px;
+            align-items: center;
+            margin-bottom: 25px;
+            border: 1px solid #1b3f5a;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .filter-group label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #799bb3;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .filter-group select, .filter-group input {
+            background-color: #17384f;
+            color: #ffffff;
+            border: 1px solid #235575;
+            padding: 6px 12px;
+            border-radius: 4px;
+            outline: none;
+            font-size: 13px;
+        }
+
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .kpi-card {
+            background-color: #ffffff;
+            color: #0d1e2d;
+            border-radius: 6px;
+            padding: 18px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .kpi-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #557085;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0b131a;
+        }
+        .kpi-indicator {
+            font-size: 12px;
+            margin-top: 5px;
+            font-weight: 600;
+            color: #10b981;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media(max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+        
+        .chart-box {
+            background-color: #0d1e2d;
+            border: 1px solid #17384f;
+            border-radius: 6px;
+            padding: 20px;
+        }
+        .chart-box-title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .axis-text text { fill: #799bb3 !important; font-size: 10px; font-weight: 600; }
+        .axis-line path, .axis-line line { stroke: #17384f !important; }
+        .grid-line line { stroke: #17384f; stroke-opacity: 0.4; shape-rendering: crispEdges; }
+        
+        .axis-label {
+            font-size: 11px;
+            fill: #a0aec0 !important;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .bar-rect { fill: #20b2aa; transition: fill 0.2s; }
+        .bar-rect:hover { fill: #00ffff; cursor: pointer; }
+        
+        .trend-line { fill: none; stroke: #00ffff; stroke-width: 2.5px; }
+        .trend-area { fill: url(#area-grad); opacity: 0.15; }
+        .node-dot { fill: #ffffff; stroke: #20b2aa; stroke-width: 2px; cursor: pointer; }
+
+        .chart-tooltip {
+            position: absolute;
+            background: #112a3d;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #235575;
+            font-size: 11px;
+            pointer-events: none;
+            opacity: 0;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+        }
+
+        /* Toast Notifications Container Setup */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast-notification {
+            background-color: #7f1d1d;
+            color: #ffffff;
+            border-left: 5px solid #ef4444;
+            padding: 15px 20px;
+            border-radius: 4px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            font-size: 13px;
+            min-width: 280px;
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <div class="dashboard-container">
+        <div class="title-header">
+            <h1>Anomaly Detection Dashboard</h1>
+        </div>
+
+        <div class="filter-ribbon">
+            <div class="filter-group">
+                <label for="filter-ip">Target IP Node:</label>
+                <select id="filter-ip">
+                    <option value="ALL">ALL NODES</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="filter-date">Log Window Date:</label>
+                <input type="date" id="filter-date" value="2026-07-10">
+            </div>
+        </div>
+
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="kpi-title">Total Anomalies Identified</div>
+                <div class="kpi-value" id="kpi-total">0</div>
+                <div class="kpi-indicator">◆ System Checked</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Highest Velocity Node</div>
+                <div class="kpi-value" id="kpi-max-node" style="font-size: 16px; padding: 8px 0;">N/A</div>
+                <div class="kpi-indicator">◆ Volumetric Peak</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Mean Threat Intensity</div>
+                <div class="kpi-value" id="kpi-avg">0.0</div>
+                <div class="kpi-indicator">◆ Events / Sec</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-box">
+                <div class="chart-box-title">Anomaly Volumetric by Source IP Matrix</div>
+                <div id="bar-canvas"></div>
+            </div>
+            <div class="chart-box">
+                <div class="chart-box-title">Stream Timeline Tracking Log Vector Intervals</div>
+                <div id="trend-canvas"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-tooltip" id="v-tooltip"></div>
+
+    <script>
+        const margin = {top: 15, right: 20, bottom: 50, left: 60};
+        const cWidth = 560 - margin.left - margin.right;
+        const cHeight = 280 - margin.top - margin.bottom;
+
+        const tooltipEl = d3.select("#v-tooltip");
+        let rawDataSet = [];
+        let existingDropdownIPs = new Set(["ALL"]);
+        let activeAlertedIPs = new Set(); 
+
+        // Function to fetch data from backend API
+        function fetchDataFromPipeline() {
+            d3.json("/api/alerts").then(data => {
+                rawDataSet = data;
+                
+                // Dynamically update dropdown options if new IPs arrive
+                const dropDown = d3.select("#filter-ip");
+                data.forEach(item => {
+                    if (!existingDropdownIPs.has(item.source_ip)) {
+                        existingDropdownIPs.add(item.source_ip);
+                        dropDown.append("option").attr("value", item.source_ip).text(item.source_ip);
+                    }
+                });
+
+                // Check for critical threats and trigger alert notifications
+                checkForCriticalThreats(data);
+
+                // Re-paint UI
+                executeRepaintPipeline();
+            }).catch(err => console.log("Pipeline read error: ", err));
+        }
+
+        // Trigger Alert notifications if attack count crosses threshold
+        function checkForCriticalThreats(data) {
+            data.forEach(item => {
+                if (item.ml_attack_count > 50) {
+                    // Unique token combination to prevent spamming the same alert repeatedly
+                    let alertToken = `${item.source_ip}-${item.time}-${item.ml_attack_count}`;
+                    if (!activeAlertedIPs.has(alertToken)) {
+                        activeAlertedIPs.add(alertToken);
+                        triggerToastNotification(item.source_ip, item.ml_attack_count);
+                    }
+                }
+            });
+        }
+
+        function triggerToastNotification(ip, count) {
+            const container = document.getElementById("toast-container");
+            const toast = document.createElement("div");
+            toast.className = "toast-notification";
+            toast.innerHTML = `<strong>⚠️ CRITICAL THREAT:</strong> Node <code>${ip}</code> breached threshold with <b>${count}</b> anomaly vectors!`;
+            
+            container.appendChild(toast);
+
+            // Auto dismiss toast after 6 seconds
+            setTimeout(() => {
+                toast.style.animation = "slideIn 0.3s ease-in reverse forwards";
+                setTimeout(() => toast.remove(), 300);
+            }, 6000);
+        }
+
+        // Initial trigger on load
+        fetchDataFromPipeline();
+
+        // FEATURE 1: Dynamic Auto-Refresh interval execution every 5 seconds
+        setInterval(fetchDataFromPipeline, 5000);
+
+        function executeRepaintPipeline() {
+            const currentSelectedIP = d3.select("#filter-ip").property("value");
+            const currentSelectedDate = d3.select("#filter-date").property("value");
+
+            let runtimeFilteredData = rawDataSet.filter(d => {
+                const checkIP = (currentSelectedIP === "ALL" || d.source_ip === currentSelectedIP);
+                const checkDate = (d.date === currentSelectedDate);
+                return checkIP && checkDate;
+            });
+
+            calculateAndRenderKPIs(runtimeFilteredData, currentSelectedIP);
+            paintBarGraphMatrix(runtimeFilteredData);
+            paintTrendGraphMatrix(runtimeFilteredData);
+        }
+
+        function calculateAndRenderKPIs(dataSet, activeIP) {
+            const sumTotal = d3.sum(dataSet, d => d.ml_attack_count);
+            document.getElementById("kpi-total").innerText = sumTotal.toLocaleString();
+
+            const avgValue = dataSet.length ? (sumTotal / dataSet.length).toFixed(1) : "0.0";
+            document.getElementById("kpi-avg").innerText = avgValue;
+
+            if(activeIP !== "ALL") {
+                document.getElementById("kpi-max-node").innerText = activeIP;
+            } else if (dataSet.length > 0) {
+                let rollupNodes = d3.rollup(dataSet, v => d3.sum(v, d => d.ml_attack_count), d => d.source_ip);
+                let peakNode = Array.from(rollupNodes).reduce((a, b) => a[1] > b[1] ? a : b, ["N/A", 0]);
+                document.getElementById("kpi-max-node").innerText = peakNode[0];
+            } else {
+                document.getElementById("kpi-max-node").innerText = "No Event";
+            }
+        }
+
+        function paintBarGraphMatrix(dataSet) {
+            d3.select("#bar-canvas").html("");
+            if(dataSet.length === 0) return;
+            
+            let aggregatedMap = d3.rollup(dataSet, v => d3.sum(v, d => d.ml_attack_count), d => d.source_ip);
+            let mapArray = Array.from(aggregatedMap, ([product, value]) => ({product, value}))
+                                .sort((a,b) => d3.descending(a.value, b.value)).slice(0, 5);
+
+            const svg = d3.select("#bar-canvas").append("svg")
+                .attr("width", cWidth + margin.left + margin.right)
+                .attr("height", cHeight + margin.top + margin.bottom)
+                .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleBand().domain(mapArray.map(d => d.product)).range([0, cWidth]).padding(0.4);
+            const y = d3.scaleLinear().domain([0, d3.max(mapArray, d => d.value) || 100]).range([cHeight, 0]).nice();
+
+            svg.append("g").attr("class", "grid-line").call(d3.axisLeft(y).tickSize(-cWidth).tickFormat(""));
+
+            svg.selectAll(".bar-rect").data(mapArray).enter().append("rect")
+                .attr("class", "bar-rect")
+                .attr("x", d => x(d.product))
+                .attr("y", d => y(d.value))
+                .attr("width", x.bandwidth())
+                .attr("height", d => cHeight - y(d.value))
+                .on("mouseover", (ev, d) => {
+                    tooltipEl.style("opacity", 1).html(`Node Identity: ${d.product}<br>Anomalies Volume: ${d.value}`);
+                })
+                .on("mousemove", (ev) => {
+                    tooltipEl.style("left", (ev.pageX + 10) + "px").style("top", (ev.pageY - 40) + "px");
+                })
+                .on("mouseout", () => tooltipEl.style("opacity", 0));
+
+            svg.append("g").attr("class", "axis-text axis-line").attr("transform", `translate(0,${cHeight})`).call(d3.axisBottom(x));
+            svg.append("g").attr("class", "axis-text axis-line").call(d3.axisLeft(y).ticks(5));
+
+            svg.append("text")
+                .attr("class", "axis-label")
+                .attr("x", cWidth / 2)
+                .attr("y", cHeight + 40)
+                .style("text-anchor", "middle")
+                .text("Threat Actor Node IP");
+
+            svg.append("text")
+                .attr("class", "axis-label")
+                .attr("transform", "rotate(-90)")
+                .attr("y", -45)
+                .attr("x", -cHeight / 2)
+                .style("text-anchor", "middle")
+                .text("Threat Density Count");
+        }
+
+        function paintTrendGraphMatrix(dataSet) {
+            d3.select("#trend-canvas").html("");
+            if(dataSet.length === 0) return;
+
+            let timeAggregation = d3.rollup(dataSet, v => d3.sum(v, d => d.ml_attack_count), d => d.time);
+            let timeArray = Array.from(timeAggregation, ([timeLabel, value]) => ({timeLabel, value}))
+                                 .sort((a,b) => d3.ascending(a.timeLabel, b.timeLabel));
+
+            const svg = d3.select("#trend-canvas").append("svg")
+                .attr("width", cWidth + margin.left + margin.right)
+                .attr("height", cHeight + margin.top + margin.bottom)
+                .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const defs = svg.append("defs");
+            const areaGrad = defs.append("linearGradient").attr("id", "area-grad").attr("x1", "0%").attr("y1", "0%").attr("x2", "0%").attr("y2", "100%");
+            areaGrad.append("stop").attr("offset", "0%").attr("stop-color", "#20b2aa");
+            areaGrad.append("stop").attr("offset", "100%").attr("stop-color", "#0d1e2d").attr("stop-opacity", 0);
+
+            const x = d3.scalePoint().domain(timeArray.map(d => d.timeLabel)).range([0, cWidth]).padding(0.2);
+            const y = d3.scaleLinear().domain([0, d3.max(timeArray, d => d.value) || 100]).range([cHeight, 0]).nice();
+
+            svg.append("g").attr("class", "grid-line").call(d3.axisLeft(y).tickSize(-cWidth).tickFormat(""));
+
+            if(timeArray.length > 0) {
+                const area = d3.area().x(d => x(d.timeLabel)).y0(cHeight).y1(d => y(d.value));
+                svg.append("path").datum(timeArray).attr("class", "trend-area").attr("d", area);
+
+                const line = d3.line().x(d => x(d.timeLabel)).y(d => y(d.value));
+                svg.append("path").datum(timeArray).attr("class", "trend-line").attr("d", line);
+            }
+
+            svg.selectAll(".node-dot").data(timeArray).enter().append("circle")
+                .attr("class", "node-dot")
+                .attr("cx", d => x(d.timeLabel))
+                .attr("cy", d => y(d.value))
+                .attr("r", 4)
+                .on("mouseover", (ev, d) => {
+                    tooltipEl.style("opacity", 1).html(`Log Interval: ${d.timeLabel}<br>Count Metrics: ${d.value}`);
+                })
+                .on("mousemove", (ev) => {
+                    tooltipEl.style("left", (ev.pageX + 10) + "px").style("top", (ev.pageY - 40) + "px");
+                })
+                .on("mouseout", () => tooltipEl.style("opacity", 0));
+
+            let tickIntervals = x.domain().filter((d,i) => !(i % Math.ceil(timeArray.length / 5)));
+            svg.append("g").attr("class", "axis-text axis-line").attr("transform", `translate(0,${cHeight})`)
+               .call(d3.axisBottom(x).tickValues(tickIntervals));
+               
+            svg.append("g").attr("class", "axis-text axis-line").call(d3.axisLeft(y).ticks(5));
+
+            svg.append("text")
+                .attr("class", "axis-label")
+                .attr("x", cWidth / 2)
+                .attr("y", cHeight + 40)
+                .style("text-anchor", "middle")
+                .text("Logging Window (Time)");
+
+            svg.append("text")
+                .attr("class", "axis-label")
+                .attr("transform", "rotate(-90)")
+                .attr("y", -45)
+                .attr("x", -cHeight / 2)
+                .style("text-anchor", "middle")
+                .text("Anomaly Event Count");
+        }
+
+        // Manual drop down listeners
+        d3.select("#filter-ip").on("change", executeRepaintPipeline);
+        d3.select("#filter-date").on("input", executeRepaintPipeline);
+    </script>
+</body>
+</html>
