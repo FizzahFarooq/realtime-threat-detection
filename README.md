@@ -1,64 +1,62 @@
 # Real-Time Cyber Threat Detection Pipeline
 
-A streaming pipeline that ingests network traffic events, scores them for anomalies using a machine learning model, and shows results on a live dashboard.
+Real-time anomaly detection pipeline using Kafka, Spark Structured Streaming, and Isolation Forest, with a live D3.js dashboard. Built on simulated network traffic.
 
----
+## What this does
 
-## What This Does
+A generator script simulates network traffic and pushes it to Kafka. Spark Structured Streaming reads the stream, groups events into sliding time windows, and runs each window through an Isolation Forest model to flag anomalies. Flagged results get written to a Parquet data lake. A Flask API reads that data and a D3.js dashboard displays it, refreshing every few seconds.
 
-Traffic events are generated and sent to Kafka. Spark Structured Streaming reads the stream, groups events into sliding time windows, and runs each window through an Isolation Forest model to flag anomalies. Flagged results are written to a Parquet data lake. A Flask API reads that data and a D3.js dashboard displays it, refreshing every few seconds.
-
-> **Note:** The traffic used here is simulated, not real network data. This is a proof of concept built to test the pipeline end to end, not a production detection system.
-
----
 
 ## Architecture
 
-* **`generator.py`** — Simulates network traffic and sends it to a Kafka topic.
-* **Apache Kafka** — Message broker for the incoming event stream.
-* **`stream_processor.py`** — Spark Structured Streaming job that windows the data and applies the ML model.
-* **Parquet Data Lake** — Stores the flagged anomaly windows.
-* **`app.py`** — Flask API that reads the data lake and serves it as JSON.
-* **`templates/index.html`** — D3.js dashboard that polls the API and renders charts and alerts.
+![architecture](docs/architecture.png)
 
-*All Kafka and Spark services run through Docker Compose.*
 
----
 
-## ⚙️ Setup & Installation
+1. generator.py — simulates network traffic and sends it to a Kafka topic
+2. Kafka — message broker for the incoming event stream
+3. stream_processor.py — Spark job that windows the data and applies the ML model
+4. Parquet data lake — stores the flagged anomaly windows
+5. app.py — Flask API that reads the data lake and serves it as JSON
+6. templates/index.html — D3.js dashboard that polls the API and renders charts and alerts
 
-### Requirements
-* Docker
-* Python 3.9+
-* pip
+Kafka and Spark run through Docker Compose.
 
-### Steps
-1. Start the infrastructure services:
+## Dashboard
+
+![dashboard](docs/dashboard.png)
+
+## Setup
+
+Requirements: Docker, Python 3.9+, pip
+
 docker-compose up -d
-
-2. Install the required Python packages:
 pip install -r requirements.txt
 
-3. Running the Pipeline
-Start these components in separate terminal windows:
 
-# Terminal 1: Sends simulated traffic to Kafka
-python generator.py
+## Running it
 
-# Terminal 2: Reads from Kafka, scores anomalies, writes to Parquet
-python stream_processor.py
+Start these in separate terminals:
 
-# Terminal 3: Serves the dashboard
-python app.py
+1.python generator.py 
 
-Once all scripts are running, open your browser and navigate to:
-http://localhost:8085
+Sends simulated traffic to Kafka
 
-# Utility Files Description
-train_model.py — Trains the Isolation Forest model on synthetic data and saves it.
+2.python stream_processor.py 
 
-export_for_d3.py — One-off script to export Parquet data lake snapshots to JSON format.
+Reads from Kafka, scores anomalies, writes to Parquet
 
-read_parquet.py — Utility script to inspect the internal data lake contents.
+3.python app.py 
 
-docker-compose.yml — Defines Zookeeper, Kafka, Spark master, and Spark worker container environments.
+Serves the dashboard at localhost:8085
+
+
+Open `http://localhost:8085` in a browser.
+
+## Files
+
+- train_model.py — trains the Isolation Forest model on synthetic data and saves it
+- export_for_d3.py — one-off script to export Parquet data to JSON
+- read_parquet.py — utility to inspect the data lake contents
+- docker-compose.yml — defines Zookeeper, Kafka, Spark master, and Spark worker
+
